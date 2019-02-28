@@ -2,21 +2,24 @@
 
 Usage:
   dcos-launch create [-L LEVEL -c PATH -i PATH]
+  dcos-launch terraform [-L LEVEL -c PATH]
   dcos-launch wait [-L LEVEL -i PATH]
   dcos-launch describe [-L LEVEL -i PATH]
   dcos-launch pytest [-L LEVEL -i PATH -e LIST] [--] [<pytest_extras>]...
   dcos-launch delete [-L LEVEL -i PATH]
 
 Commands:
-  create    Reads the file given by --config-path, creates the cluster
-              described therein and finally dumps a JSON file to the path
-              given in --info-path which can then be used with the wait,
-              describe, pytest, and delete calls.
-  wait      Block until the cluster is up and running.
-  describe  Return additional information about the composition of the cluster.
-  pytest    Runs integration test suite on cluster. Can optionally supply
-              options and arguments to pytest
-  delete    Destroying the provided cluster deployment.
+  create     Reads the file given by --config-path, creates the cluster
+               described therein and finally dumps a JSON file to the path
+               given in --info-path which can then be used with the wait,
+               describe, pytest, and delete calls.
+  terraform  Reads the configuration file given by --config-path and outputs a
+             valid terraform configuration.
+  wait       Block until the cluster is up and running.
+  describe   Return additional information about the composition of the cluster.
+  pytest     Runs integration test suite on cluster. Can optionally supply
+               options and arguments to pytest
+  delete     Destroying the provided cluster deployment.
 
 Options:
   -c PATH --config-path=PATH
@@ -57,6 +60,12 @@ def do_main(args):
         create_exception = getattr(launcher, 'create_exception', None)
         if create_exception:
             raise create_exception
+        return 0
+
+    if args['terraform']:
+        config = dcos_launch.config.get_validated_config_from_path(args['--config-path'])
+        launcher = dcos_launch.get_launcher(config)
+        print(launcher.generate_terraform())
         return 0
 
     try:

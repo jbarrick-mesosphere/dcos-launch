@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import shutil
+import subprocess
 
 import pkg_resources
 import yaml
@@ -212,3 +213,69 @@ echo "{{\\"fault_domain\\":{{\\"region\\":{{\\"name\\": \\"$REGION\\"}},\\"zone\
             'masters': util.convert_host_list(cluster.get_master_ips()),
             'private_agents': util.convert_host_list(cluster.get_private_agent_ips()),
             'public_agents': util.convert_host_list(cluster.get_public_agent_ips())}
+
+    def generate_terraform(self):
+        pubkey = subprocess.check_output(['ssh-add', '-L']).decode().split('\n')[0]
+
+        module = {
+            "source": "dcos-terraform/dcos/aws",
+            "version": "~> 0.1",
+
+            "cluster_name": self.config['deployment_name'][-32:].lstrip('-'),
+            "ssh_public_key": pubkey,
+            "ssh_public_key_file": "",
+            "admin_ips": [self.config['admin_location']],
+
+            "num_masters": self.config['num_masters'],
+            "num_private_agents": self.config['num_private_agents'],
+            "num_public_agents": self.config['num_public_agents'],
+
+#            "bootstrap_aws_ami": self.config['bootstrap_instance_ami'],
+#            "aws_ami": self.config['instance_ami'],
+
+#            "bootstrap_os": self.config['bootstrap_os_name'],
+#            "dcos_instance_os": self.config['os_name'],
+
+            "bootstrap_instance_type": self.config['bootstrap_instance_type'],
+            "masters_instance_type": self.config['instance_type'],
+            "private_agents_instance_type": self.config['instance_type'],
+            "public_agents_instance_type": self.config['instance_type'],
+
+            "dcos_master_discovery": self.config['dcos_config']['master_discovery'],
+            "dcos_resolvers": "# YAML\n{}".format(json.dumps(self.config['dcos_config']['resolvers'])),
+
+            "providers": {
+                "aws": "aws"
+            },
+
+            "custom_dcos_download_path": self.config['installer_url'],
+            "dcos_install_mode": "install",
+        }
+
+        if 'dns_search' in self.config['dcos_config']:
+            module['dcos_dns_search'] = self.config['dcos_config']['dns_search']
+
+        if 'exhibitor_storage_backend' in self.config['dcos_config']:
+            module['dcos_exhibitor_storage_backend'] = self.config['dcos_config']['exhibitor_storage_backend']
+
+        return json.dumps({
+            "provider": {
+                "aws": {
+                    "region": self.config['aws_region']
+                }
+            },
+            "module": {
+                "dcos": module
+            },
+            "output": {
+                "masters-ips": {
+                    "value": "${module.dcos.masters-ips}"
+                },
+                "cluster-address": {
+                    "value": "${module.dcos.masters-loadbalancer}"
+                },
+                "public-agents-loadbalancer": {
+                    "value": "${module.dcos.public-agents-loadbalancer}"
+                }
+            }
+        })
